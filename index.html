@@ -1,0 +1,1199 @@
+<meta charset="utf-8">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Spin Coupling Visualiser</title>
+<style>
+  /* Layout: paper-style instrument — white 3D viewports for clean screenshots, light chrome.
+     Color: sequential-blue density on white, orange classical vectors, magenta sum, green bisector.
+     Type: IBM Plex Serif (display, echoes the LaTeX notes) / Sans (UI) / Mono (coefficients). */
+  :root{
+    --bg:#f3f4f7; --panel:#ffffff; --panel-2:#f5f6f9; --screen:#ffffff;
+    --fg:#1a1f2b; --muted:#5b6478; --faint:#949cae;
+    --line:#e4e7ee; --line-2:#d2d7e2;
+    --accent:#1f6fb0; --accent-dim:#9cc4e4;
+    --amber:#e8710a; --pink:#d6336c; --green:#2f9e44; --warn:#b5830b;
+    --radius:12px; --radius-s:8px;
+    color-scheme:light;
+    --font-serif:"IBM Plex Serif",Georgia,"Times New Roman",serif;
+    --font-sans:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  @media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+    --bg:#0f1218; --panel:#161a22; --panel-2:#1b2029; --screen:#ffffff;
+    --fg:#e8edf6; --muted:#9aa4b8; --faint:#6a7489;
+    --line:#262d3b; --line-2:#333c4e;
+    --accent:#5aa9e0; --accent-dim:#2d5f85;
+    color-scheme:dark;
+  }}
+  :root[data-theme="dark"]{
+    --bg:#0f1218; --panel:#161a22; --panel-2:#1b2029; --screen:#ffffff;
+    --fg:#e8edf6; --muted:#9aa4b8; --faint:#6a7489;
+    --line:#262d3b; --line-2:#333c4e;
+    --accent:#5aa9e0; --accent-dim:#2d5f85;
+    color-scheme:dark;
+  }
+
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:var(--font-sans); font-size:14px; line-height:1.45;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    min-height:100%;
+    padding-left:max(16px,env(safe-area-inset-left,0px));
+    padding-right:max(16px,env(safe-area-inset-right,0px));
+    padding-block:18px 28px;
+    max-width:1480px; margin:0 auto;
+    display:flex; flex-direction:column; gap:16px;
+  }
+
+  header{display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap}
+  .title{display:flex; flex-direction:column; gap:3px}
+  h1{font-family:var(--font-serif); font-weight:600; font-size:clamp(21px,3.4vw,30px); margin:0; letter-spacing:.2px; text-wrap:balance}
+  .sub{color:var(--muted); font-size:13px; max-width:64ch}
+  .sub code{font-family:var(--font-mono); font-size:.92em; color:var(--fg)}
+  .hbtns{display:flex; gap:8px; align-items:center}
+
+  .bar{display:flex; flex-wrap:wrap; gap:12px 18px; align-items:center; background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px}
+  .ctl{display:flex; align-items:center; gap:9px}
+  .ctl .name{font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted)}
+  .stepper{display:inline-flex; align-items:center; border:1px solid var(--line-2); border-radius:var(--radius-s); overflow:hidden; background:var(--panel-2)}
+  .stepper button{appearance:none; border:0; background:transparent; color:var(--fg); font-family:var(--font-mono); font-size:16px; width:30px; height:30px; cursor:pointer; line-height:1}
+  .stepper button:hover{background:color-mix(in srgb,var(--accent) 16%,transparent)}
+  .stepper .val{font-family:var(--font-mono); min-width:28px; text-align:center; font-size:15px; font-variant-numeric:tabular-nums}
+  .lenh{font-family:var(--font-mono); font-size:11px; color:var(--muted)}
+
+  .gamma{display:flex; align-items:center; gap:10px; min-width:230px; flex:1 1 230px; max-width:360px}
+  input[type=range]{-webkit-appearance:none; appearance:none; height:5px; border-radius:4px; background:var(--line-2); flex:1; cursor:pointer}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; appearance:none; width:17px; height:17px; border-radius:50%; background:var(--amber); border:2px solid var(--panel); box-shadow:0 0 0 1px var(--line-2); cursor:pointer}
+  input[type=range]::-moz-range-thumb{width:16px; height:16px; border-radius:50%; background:var(--amber); border:2px solid var(--panel); cursor:pointer}
+  .gval{font-family:var(--font-mono); font-size:13px; min-width:46px; text-align:right; font-variant-numeric:tabular-nums}
+
+  .seg{display:inline-flex; border:1px solid var(--line-2); border-radius:var(--radius-s); overflow:hidden; background:var(--panel-2)}
+  .seg button{appearance:none; border:0; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; padding:7px 13px; cursor:pointer; white-space:nowrap}
+  .seg button[aria-pressed="true"]{background:var(--accent); color:#fff; font-weight:600}
+  .seg button:not([aria-pressed="true"]):hover{color:var(--fg)}
+
+  .switch{display:inline-flex; align-items:center; gap:8px; cursor:pointer; user-select:none; font-size:12.5px; color:var(--fg)}
+  .switch input{position:absolute; opacity:0; width:0; height:0}
+  .track{width:34px; height:19px; border-radius:20px; background:var(--line-2); position:relative; transition:background .15s; flex:none}
+  .track::after{content:""; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.25); transition:transform .15s}
+  .switch input:checked + .track{background:var(--accent)}
+  .switch input:checked + .track::after{transform:translateX(15px)}
+  .switch input:focus-visible + .track{outline:2px solid var(--accent); outline-offset:2px}
+  .sw-dot{width:9px;height:9px;border-radius:50%;flex:none}
+
+  .btn{appearance:none; border:1px solid var(--line-2); background:var(--panel-2); color:var(--fg); font:inherit; font-size:12px; padding:6px 11px; border-radius:var(--radius-s); cursor:pointer; white-space:nowrap}
+  .btn:hover{border-color:var(--accent); color:var(--accent)}
+  .iconbtn{appearance:none; border:1px solid var(--line-2); background:var(--panel-2); color:var(--fg); width:34px; height:34px; border-radius:var(--radius-s); cursor:pointer; font-size:15px; line-height:1}
+  .iconbtn:hover{border-color:var(--accent)}
+
+  .views{display:grid; grid-template-columns:1fr 1fr; gap:16px}
+  #views[data-layout="stacked"]{grid-template-columns:1fr}
+  #views[data-layout="stacked"] .screen-wrap{aspect-ratio:5/2}
+  @media (max-width:980px){ .views{grid-template-columns:1fr} }
+
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column}
+  .panel-head{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 14px; border-bottom:1px solid var(--line); flex-wrap:wrap}
+  .panel-head h2{margin:0; font-family:var(--font-serif); font-size:16px; font-weight:600}
+  .panel-head .tag{font-family:var(--font-mono); font-size:11px; color:var(--muted)}
+  .panel-tools{display:flex; gap:12px 14px; align-items:center; flex-wrap:wrap}
+
+  .vec-controls{display:flex; flex-direction:column; gap:7px; padding:9px 14px 11px; border-bottom:1px solid var(--line); background:var(--panel-2)}
+  .vrow{display:flex; align-items:center; gap:7px; flex-wrap:wrap}
+  .vrow .vlab{font-family:var(--font-serif); font-weight:600; font-size:15px; width:14px}
+  .vrow label{font-family:var(--font-mono); font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em}
+  .vrow input[type=range]{flex:1 1 90px; min-width:80px}
+  .vrow .sv{font-family:var(--font-mono); font-size:11.5px; min-width:42px; text-align:right; font-variant-numeric:tabular-nums}
+  .screen-wrap{position:relative; background:var(--screen); aspect-ratio:1/0.82; width:100%}
+  @media (max-width:980px){ .screen-wrap{aspect-ratio:1/0.92} }
+  canvas{display:block; width:100%; height:100%; touch-action:none; cursor:grab}
+  canvas.dragging{cursor:grabbing}
+  .overlay{position:absolute; inset:0; pointer-events:none; overflow:hidden; font-family:var(--font-mono)}
+  .olabel{position:absolute; transform:translate(-50%,0); text-align:center; font-size:11px; color:#1a1f2b; white-space:nowrap; text-shadow:0 0 3px #fff,0 0 3px #fff,0 1px 2px #fff}
+  .olabel .j{color:var(--accent); font-weight:600}
+  .olabel .lam{color:var(--amber)}
+  .olabel .olP{font-size:14.5px; font-weight:600; color:#15426e; letter-spacing:.01em}
+  .olabel .olsub{font-size:10.5px; color:#5b6478; margin-top:1px}
+  .corner{position:absolute; top:10px; left:12px; font-family:var(--font-mono); font-size:11px; color:#424a5c; pointer-events:none; text-shadow:0 0 3px #fff,0 0 3px #fff; line-height:1.5}
+  .hint{position:absolute; bottom:9px; right:12px; font-size:10.5px; color:#7a8294; pointer-events:none; text-shadow:0 0 3px #fff,0 0 3px #fff}
+
+  .chan-strip{padding:12px 14px; display:flex; flex-direction:column; gap:9px; border-top:1px solid var(--line)}
+  .chan-strip .lead{font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--muted); display:flex; gap:8px; align-items:baseline}
+  .chan-strip .lead .warnmsg{color:var(--warn); text-transform:none; letter-spacing:0; font-family:var(--font-mono); font-size:11px}
+  .chips{display:flex; gap:8px; flex-wrap:wrap}
+  .chip{appearance:none; text-align:left; border:1px solid var(--line-2); background:var(--panel-2); border-radius:var(--radius-s); padding:8px 10px 9px; cursor:pointer; min-width:92px; color:var(--fg); display:flex; flex-direction:column; gap:6px; font:inherit}
+  .chip:hover{border-color:var(--accent-dim)}
+  .chip[aria-pressed="true"]{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
+  .chip .chip-top{display:flex; align-items:baseline; justify-content:space-between; gap:8px}
+  .chip .ch-j{font-family:var(--font-serif); font-size:14px}
+  .chip .ch-c{font-family:var(--font-mono); font-size:10.5px; color:var(--muted)}
+  .chip .ch-lam{font-family:var(--font-mono); font-size:13px; color:var(--amber); font-variant-numeric:tabular-nums}
+  .bar-outer{height:5px; border-radius:3px; background:var(--line); overflow:hidden}
+  .bar-inner{height:100%; background:linear-gradient(90deg,var(--accent-dim),var(--accent)); border-radius:3px}
+  .chip .ch-p{font-family:var(--font-mono); font-size:10px; color:var(--faint)}
+
+  .foot{color:var(--muted); font-size:12px; line-height:1.55}
+  .foot b{color:var(--fg); font-weight:600}
+  .foot code{font-family:var(--font-mono); color:var(--fg); font-size:.92em}
+  details.notes{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:0 14px}
+  details.notes > summary{cursor:pointer; padding:12px 0; font-family:var(--font-serif); font-size:15px; font-weight:600; list-style:none}
+  details.notes > summary::-webkit-details-marker{display:none}
+  details.notes > summary::before{content:"▸ "; color:var(--accent)}
+  details.notes[open] > summary::before{content:"▾ "}
+  details.notes .body{padding-bottom:14px; display:flex; flex-direction:column; gap:10px}
+  .eq{font-family:var(--font-mono); background:var(--panel-2); border:1px solid var(--line); border-radius:var(--radius-s); padding:9px 11px; overflow-x:auto; font-size:12.5px; color:var(--fg)}
+
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important} }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+
+<div class="wrap">
+  <header>
+    <div class="title">
+      <h1>Spin Coupling Visualiser</h1>
+      <div class="sub">Two coherent spin states <code>ψ<sub>v</sub></code>, <code>ψ<sub>w</sub></code> and the coupled states <code>ψ<sup>(c)</sup><sub>v;w</sub></code> they produce under the Clebsch–Gordan fusion rule. Set the angle between the vectors and the coupling updates live.</div>
+    </div>
+    <div class="hbtns">
+      <button class="iconbtn" id="theme-btn" title="Toggle light / dark chrome" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="ctl">
+      <span class="name">v&nbsp;(a)</span>
+      <div class="stepper" id="spin-a">
+        <button data-d="-1" aria-label="decrease a">−</button>
+        <span class="val" id="a-val">3</span>
+        <button data-d="1" aria-label="increase a">+</button>
+      </div>
+      <span class="lenh" id="a-len">|v|=3⁄2</span>
+    </div>
+    <div class="ctl">
+      <span class="name">w&nbsp;(b)</span>
+      <div class="stepper" id="spin-b">
+        <button data-d="-1" aria-label="decrease b">−</button>
+        <span class="val" id="b-val">2</span>
+        <button data-d="1" aria-label="increase b">+</button>
+      </div>
+      <span class="lenh" id="b-len">|w|=1</span>
+    </div>
+    <div class="ctl" style="margin-left:auto">
+      <button class="btn" id="reset-btn" title="North pole up, zero-longitude axis to the right">Reset orientation</button>
+    </div>
+    <div class="ctl">
+      <span class="name">Angles</span>
+      <div class="seg" id="unit-seg" role="group" aria-label="Angle units">
+        <button data-unit="deg" aria-pressed="true">deg</button>
+        <button data-unit="rad" aria-pressed="false">rad</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="name">Layout</span>
+      <div class="seg" id="layout-seg" role="group" aria-label="Panel layout">
+        <button data-layout="cols" aria-pressed="true">Side by side</button>
+        <button data-layout="stacked" aria-pressed="false">Stacked</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="name">Coupled view</span>
+      <div class="seg" id="mode-seg" role="group" aria-label="Right-hand view mode">
+        <button data-mode="all" aria-pressed="true">All states</button>
+        <button data-mode="cross" aria-pressed="false">Cross-section</button>
+        <button data-mode="focus" aria-pressed="false">Focused</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="name">Export</span>
+      <div class="seg" id="exfmt-seg" role="group" aria-label="Export format">
+        <button data-fmt="png" aria-pressed="true">PNG</button>
+        <button data-fmt="pdf" aria-pressed="false">PDF</button>
+      </div>
+      <button class="btn" id="ex-left">Input</button>
+      <button class="btn" id="ex-right">Output</button>
+      <button class="btn" id="ex-both">Both</button>
+    </div>
+  </div>
+
+  <div class="views" id="views" data-layout="cols">
+    <!-- LEFT -->
+    <section class="panel">
+      <div class="panel-head">
+        <div style="display:flex;align-items:baseline;gap:9px">
+          <h2>Coherent states</h2>
+          <span class="tag">|ψ(x)|² on S²</span>
+        </div>
+        <div class="panel-tools">
+          <label class="switch"><input type="checkbox" id="t-sph" checked><span class="track"></span><span class="sw-dot" style="background:#9cc4e4"></span>Spheres</label>
+          <label class="switch"><input type="checkbox" id="t-vec" checked><span class="track"></span><span class="sw-dot" style="background:var(--amber)"></span>Vectors</label>
+          <label class="switch"><input type="checkbox" id="t-cont"><span class="track"></span><span class="sw-dot" style="background:#2a4a6a"></span>Contours</label>
+        </div>
+      </div>
+      <div class="vec-controls">
+        <div class="vrow">
+          <span class="vlab" style="color:var(--amber)">v</span>
+          <label>lat</label><input type="range" id="v-lat" min="-90" max="90" step="1" value="35"><span class="sv" id="v-lat-v">35°</span>
+          <label>lon</label><input type="range" id="v-lon" min="-180" max="180" step="1" value="150"><span class="sv" id="v-lon-v">150°</span>
+        </div>
+        <div class="vrow">
+          <span class="vlab" style="color:#c7791e">w</span>
+          <label>lat</label><input type="range" id="w-lat" min="-90" max="90" step="1" value="35"><span class="sv" id="w-lat-v">35°</span>
+          <label>lon</label><input type="range" id="w-lon" min="-180" max="180" step="1" value="30"><span class="sv" id="w-lon-v">30°</span>
+        </div>
+      </div>
+      <div class="screen-wrap">
+        <canvas id="cv-left"></canvas>
+        <div class="overlay" id="ov-left">
+          <div class="corner" id="corner-left"></div>
+          <div class="hint">drag to rotate the view · scroll to zoom</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT -->
+    <section class="panel">
+      <div class="panel-head">
+        <div style="display:flex;align-items:baseline;gap:9px">
+          <h2 id="right-title">Coupled states</h2>
+          <span class="tag" id="right-tag">V<sub>a</sub>⊗V<sub>b</sub> ≅ ⊕<sub>c</sub> V<sub>c</sub></span>
+        </div>
+        <div class="panel-tools">
+          <label class="switch"><input type="checkbox" id="t-cont-r"><span class="track"></span><span class="sw-dot" style="background:#2a4a6a"></span>Contours</label>
+          <span class="panel-tools" id="cross-tools" hidden>
+            <div class="seg" id="cross-seg" role="group" aria-label="Cross-section style">
+              <button data-cross="rings" aria-pressed="true">Rings</button>
+              <button data-cross="cutaway" aria-pressed="false">Cut-away</button>
+            </div>
+            <label class="switch"><input type="checkbox" id="t-crossc"><span class="track"></span><span class="sw-dot" style="background:var(--amber)"></span>Construction</label>
+            <label class="switch"><input type="checkbox" id="t-crosspar" checked><span class="track"></span><span class="sw-dot" style="background:#7c3aed"></span>Parallel lines</label>
+          </span>
+          <span class="panel-tools" id="focus-tools" hidden>
+            <label class="switch"><input type="checkbox" id="t-vecf" checked><span class="track"></span><span class="sw-dot" style="background:var(--amber)"></span>Vectors</label>
+            <label class="switch"><input type="checkbox" id="t-bis" checked><span class="track"></span><span class="sw-dot" style="background:#7c3aed"></span>Construction</label>
+            <label class="switch"><input type="checkbox" id="t-vwray"><span class="track"></span><span class="sw-dot" style="background:var(--pink)"></span>v+w ray</label>
+            <label class="switch"><input type="checkbox" id="t-full"><span class="track"></span><span class="sw-dot" style="background:#11161f"></span>Full</label>
+          </span>
+        </div>
+      </div>
+      <div class="screen-wrap">
+        <canvas id="cv-right"></canvas>
+        <div class="overlay" id="ov-right">
+          <div class="corner" id="corner-right"></div>
+          <div class="hint">drag to rotate · scroll to zoom · rotation is tied to the input</div>
+        </div>
+      </div>
+      <div class="chan-strip">
+        <div class="lead"><span>Generalised CG coefficients&nbsp; λ<sup>(c)</sup>&nbsp;·&nbsp;Σλ²=1</span><span class="warnmsg" id="cg-warn"></span></div>
+        <div class="chips" id="chips"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="foot">
+    <b>Reading it.</b> Each sphere has physical radius = the spin length (<code>k⁄2</code>); the colour on its surface is the local norm-squared <code>|ψ(x)|²</code>, deepest at the peak and normalised to each state's own maximum. In the multi-view, every coupled sphere's colour is scaled by its channel amplitude <code>λ<sup>(c)</sup> = ‖P<sub>c</sub>(ψ̂<sub>v</sub>⊗ψ̂<sub>w</sub>)‖</code>, so pale spheres are weakly populated channels. The dot (⬤) marks where the coupled norm peaks; in the focused view the construction reproduces it — start at <code>v+w</code> and run parallel to the bisector of <code>v,w</code> out to the radius-<code>c⁄2</code> sphere (the chevrons mark the two lines as parallel). Switch on <b>Full</b> for the complete construction — both parallelograms, the law-of-sines triangle, and the angles <code>γ⁄2</code>, <code>α−γ⁄2</code>. In the Cross-section view, <b>Construction</b> draws that same parallel line through all the nested shells, so you can see the peaks of every channel lined up on it.
+  </div>
+
+  <details class="notes">
+    <summary>Conventions &amp; what's computed</summary>
+    <div class="body">
+      <p class="foot" style="margin:0">A state in <code>V<sub>k</sub></code> is the spin <code>j=k⁄2</code> representation; its classical vector has length <code>k⁄2</code>. Coupled labels follow the fusion rule <code>c ∈ {|a−b|, |a−b|+2, …, a+b}</code>. Only the relative angle <code>γ</code> between v and w affects the coupled shapes and coefficients (everything else is an overall rotation), so γ is the single physical input beyond the two spins.</p>
+      <div class="eq">ψ<sub>p</sub><sup>(k)</sup> = c<sub>k</sub>(p̄₀Z + p̄₁W)<sup>k</sup> &nbsp;·&nbsp; density |ψ(x)|² = |⟨ψ<sub>pₓ</sub>|ψ⟩|²  (Husimi / overlap)</div>
+      <div class="eq">coupled: ψ<sup>(c)</sup><sub>v;w</sub> ∝ P<sub>c</sub>(ψ<sub>v</sub>⊗ψ<sub>w</sub>),  β<sup>(c)</sup><sub>M</sub> = Σ ⟨j₁m₁ j₂m₂|Jc M⟩ ψ<sub>v,m₁</sub> ψ<sub>w,m₂</sub></div>
+      <div class="eq">peak angle from v:  α = γ⁄2 + arcsin( (b−a)/c · sin(γ⁄2) )</div>
+      <p class="foot" style="margin:0">The coupled state's full density is computed exactly from the coupled coefficient vector, so the ⬤ peak is the true argmax — it lands on the point given by the <code>α</code> formula as a check, not an assumption. The coefficient uses the orthogonal-projection (channel-amplitude) normalisation you chose, so <code>Σ<sub>c</sub> (λ<sup>(c)</sup>)² = 1</code>. For every <code>γ&lt;180°</code> the norm peaks at the single point <code>m</code>; only as <code>v,w</code> approach antiparallel does <code>m</code> degenerate into a ring (of height <code>|a−b|</code>), which is then drawn directly on the sphere.</p>
+    </div>
+  </details>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+"use strict";
+(function(){
+  if(!window.THREE){ document.getElementById('corner-left').textContent='three.js failed to load'; return; }
+  const T = window.THREE;
+
+  /* ======================= math core (verified) ======================= */
+  const logFactCache=[0,0];
+  function logFact(n){ if(n<logFactCache.length) return logFactCache[n];
+    let v=logFactCache[logFactCache.length-1];
+    for(let i=logFactCache.length;i<=n;i++){ v+=Math.log(i); logFactCache[i]=v; } return logFactCache[n]; }
+  function binom(n,k){ if(k<0||k>n) return 0; return Math.exp(logFact(n)-logFact(k)-logFact(n-k)); }
+
+  function cg(j1,m1,j2,m2,J,M){
+    if(Math.abs(M-(m1+m2))>1e-9) return 0;
+    if(J<Math.abs(j1-j2)-1e-9 || J>j1+j2+1e-9) return 0;
+    if(Math.abs(m1)>j1+1e-9||Math.abs(m2)>j2+1e-9||Math.abs(M)>J+1e-9) return 0;
+    const pre=0.5*( Math.log(2*J+1)+logFact(j1+j2-J)+logFact(j1-j2+J)+logFact(-j1+j2+J)-logFact(j1+j2+J+1)
+      +logFact(J+M)+logFact(J-M)+logFact(j1-m1)+logFact(j1+m1)+logFact(j2-m2)+logFact(j2+m2) );
+    let sum=0;
+    const tmin=Math.max(0,Math.round(j2-J-m1),Math.round(j1-J+m2));
+    const tmax=Math.min(Math.round(j1+j2-J),Math.round(j1-m1),Math.round(j2+m2));
+    for(let t=tmin;t<=tmax;t++){
+      const denom=logFact(t)+logFact(j1+j2-J-t)+logFact(j1-m1-t)+logFact(j2+m2-t)+logFact(J-j2+m1+t)+logFact(J-j1-m2+t);
+      sum+=((t%2)?-1:1)*Math.exp(pre-denom);
+    }
+    return sum;
+  }
+  function coherentVec(k,theta,phi){
+    const s=Math.sin(phi/2), c=Math.cos(phi/2);
+    const re=new Float64Array(k+1), im=new Float64Array(k+1);
+    for(let i=0;i<=k;i++){ const mag=Math.sqrt(binom(k,i))*Math.pow(s,i)*Math.pow(c,k-i); const ang=-theta*i;
+      re[i]=mag*Math.cos(ang); im[i]=mag*Math.sin(ang); }
+    return {re,im};
+  }
+  function coupledVec(a,b,c,va,vb){
+    const j1=a/2,j2=b/2,J=c/2,kk=(a+b-c)/2;
+    const re=new Float64Array(c+1), im=new Float64Array(c+1);
+    for(let i1=0;i1<=a;i1++){ const m1=i1-j1, ar=va.re[i1], ai=va.im[i1];
+      for(let i2=0;i2<=b;i2++){ const Ic=i1+i2-kk; if(Ic<0||Ic>c) continue;
+        const coef=cg(j1,m1,j2,i2-j2,J,m1+(i2-j2)); if(coef===0) continue;
+        const br=vb.re[i2], bi=vb.im[i2];
+        re[Ic]+=coef*(ar*br-ai*bi); im[Ic]+=coef*(ar*bi+ai*br);
+      }
+    }
+    let n2=0; for(let i=0;i<=c;i++) n2+=re[i]*re[i]+im[i]*im[i];
+    return {re,im,lambda:Math.sqrt(n2)};
+  }
+  function allowedC(a,b){ const out=[]; for(let c=Math.abs(a-b);c<=a+b;c+=2) out.push(c); return out; }
+  const dir3=(theta,phi)=> new T.Vector3(Math.sin(phi)*Math.cos(theta),Math.cos(phi),Math.sin(phi)*Math.sin(theta));
+
+  // unit direction from geographic latitude/longitude (degrees); lat=+90 is the north pole (+y)
+  function dirFromLatLon(latDeg,lonDeg){
+    const phi=(90-latDeg)*Math.PI/180, th=lonDeg*Math.PI/180;
+    return new T.Vector3(Math.sin(phi)*Math.cos(th),Math.cos(phi),Math.sin(phi)*Math.sin(th));
+  }
+  // (theta,phi) of a unit vector, for coherentVec
+  function angles(d){ return { theta:Math.atan2(d.z,d.x), phi:Math.acos(Math.max(-1,Math.min(1,d.y))) }; }
+
+  // try to write lambda = sqrt(P) as a tidy radical (P rational with small denominator); else null
+  function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ [a,b]=[b,a%b]; } return a||1; }
+  function sqfree(n){ let m=1,r=n; for(let k=2;k*k<=r;k++){ while(r%(k*k)===0){ r/=k*k; m*=k; } } return {m,r}; } // n = m^2 * r
+  function radical(P){
+    if(P<1e-9) return '0';
+    if(Math.abs(P-1)<1e-9) return '1';
+    let p=0,q=0;
+    for(let qq=1;qq<=72;qq++){ const pp=Math.round(P*qq); if(pp>=0&&pp<=qq&&Math.abs(P-pp/qq)<1e-7){ p=pp; q=qq; break; } }
+    if(!q) return null;
+    const g=gcd(p,q); p/=g; q/=g;                     // lambda = sqrt(p/q) = sqrt(p)/sqrt(q)
+    const sp=sqfree(p), sq=sqfree(q);                 // sqrt(p)=sp.m*sqrt(sp.r), sqrt(q)=sq.m*sqrt(sq.r)
+    let a=sp.m, b=sq.m; const g2=gcd(a,b); a/=g2; b/=g2;
+    const num = sp.r===1 ? String(a) : (a===1?`√${sp.r}`:`${a}√${sp.r}`);
+    const den = sq.r===1 ? (b===1?'':String(b)) : (b===1?`√${sq.r}`:`${b}√${sq.r}`);
+    return den===''?num:`${num}/${den}`;
+  }
+  function ratio(P){ // P as a tidy fraction when it is rational with small denominator, else null
+    if(P<1e-9) return '0'; if(Math.abs(P-1)<1e-9) return '1';
+    for(let q=1;q<=72;q++){ const p=Math.round(P*q); if(p>=0&&p<=q&&Math.abs(P-p/q)<1e-7){ const g=gcd(p,q); return (q/g===1)?String(p/g):`${p/g}/${q/g}`; } }
+    return null;
+  }
+
+  function peakDir(a,b,c,dv,dw){
+    const cosg=Math.max(-1,Math.min(1,dv.dot(dw))); const gamma=Math.acos(cosg);
+    let e2=dw.clone().addScaledVector(dv,-cosg);
+    const degenerate=e2.length()<1e-4;
+    if(degenerate) e2=Math.abs(dv.y)<0.9?new T.Vector3(0,1,0).cross(dv):new T.Vector3(1,0,0).cross(dv);
+    e2.normalize();
+    let arg=((b-a)/c)*Math.sin(gamma/2); arg=Math.max(-1,Math.min(1,arg));
+    const alpha=gamma/2+Math.asin(arg);
+    const d=dv.clone().multiplyScalar(Math.cos(alpha)).addScaledVector(e2,Math.sin(alpha));
+    return {dir:d.normalize(), gamma, degenerate:degenerate&&Math.abs(gamma-Math.PI)<0.02};
+  }
+
+  /* ======================= colour ramp (sequential blues on white) ======================= */
+  const RAMP=[[0,[0.905,0.922,0.945]],[0.25,[0.66,0.80,0.91]],[0.5,[0.35,0.62,0.85]],[0.75,[0.13,0.40,0.70]],[1,[0.03,0.19,0.44]]];
+  function ramp(t){ t=Math.max(0,Math.min(1,t));
+    for(let i=1;i<RAMP.length;i++){ if(t<=RAMP[i][0]){ const a=RAMP[i-1],b=RAMP[i],f=(t-a[0])/(b[0]-a[0]);
+      return [a[1][0]+(b[1][0]-a[1][0])*f,a[1][1]+(b[1][1]-a[1][1])*f,a[1][2]+(b[1][2]-a[1][2])*f]; }}
+    return RAMP[RAMP.length-1][1];
+  }
+  const LIGHT=new T.Vector3(0.4,0.75,0.55).normalize();
+
+  /* ======================= sphere (fixed radius, colour = density) ======================= */
+  class DensitySphere{
+    constructor(nLat,nLon){
+      this.nLat=nLat; this.nLon=nLon;
+      const nv=(nLat+1)*(nLon+1);
+      this.dirs=new Array(nv); this.pos=new Float32Array(nv*3); this.col=new Float32Array(nv*3);
+      this.dn=new Float64Array(nv); this.R=1;
+      const idx=[];
+      for(let la=0;la<=nLat;la++){ const phi=Math.PI*la/nLat, sp=Math.sin(phi), cp=Math.cos(phi);
+        for(let lo=0;lo<=nLon;lo++){ const th=2*Math.PI*lo/nLon; this.dirs[la*(nLon+1)+lo]=new T.Vector3(sp*Math.cos(th),cp,sp*Math.sin(th)); } }
+      for(let la=0;la<nLat;la++) for(let lo=0;lo<nLon;lo++){ const p=la*(nLon+1)+lo,q=p+1,r=p+(nLon+1),s=r+1; idx.push(p,r,q, q,r,s); }
+      this.geo=new T.BufferGeometry();
+      this.geo.setAttribute('position',new T.BufferAttribute(this.pos,3));
+      this.geo.setAttribute('color',new T.BufferAttribute(this.col,3));
+      this.geo.setIndex(idx);
+      this.mesh=new T.Mesh(this.geo,new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide}));
+    }
+    update(densityFn,R,bright){
+      this.R=R; const n=this.dirs.length; let mx=1e-12;
+      for(let i=0;i<n;i++){ const d=densityFn(this.dirs[i]); this.dn[i]=d; if(d>mx)mx=d; }
+      for(let i=0;i<n;i++){
+        const dn=this.dn[i]/mx; this.dn[i]=dn; const dir=this.dirs[i];
+        this.pos[i*3]=dir.x*R; this.pos[i*3+1]=dir.y*R; this.pos[i*3+2]=dir.z*R;
+        const base=ramp(dn); const sh=0.62+0.38*Math.max(0,dir.dot(LIGHT));
+        // pale -> saturated by channel brightness: lerp toward white
+        const w=1-bright;
+        this.col[i*3]  =(base[0]*(1-w)+0.96*w)*sh;
+        this.col[i*3+1]=(base[1]*(1-w)+0.97*w)*sh;
+        this.col[i*3+2]=(base[2]*(1-w)+0.99*w)*sh;
+      }
+      this.geo.attributes.position.needsUpdate=true;
+      this.geo.attributes.color.needsUpdate=true;
+      this.geo.computeBoundingSphere();
+    }
+    // true iso-density contours via marching squares on the (lat,lon) grid; returns LineSegments (local coords)
+    contours(levels,color,opacity){
+      const nLat=this.nLat,nLon=this.nLon,R=this.R,dirs=this.dirs,dn=this.dn;
+      const segs=[];
+      const cross=(ia,ib,L)=>{ const va=dn[ia],vb=dn[ib]; const t=(L-va)/(vb-va);
+        const d=dirs[ia].clone().lerp(dirs[ib],t).normalize(); return d.multiplyScalar(R); };
+      for(let la=0;la<nLat;la++) for(let lo=0;lo<nLon;lo++){
+        const i00=la*(nLon+1)+lo, i01=i00+1, i10=i00+(nLon+1), i11=i10+1;
+        const edges=[[i00,i01],[i01,i11],[i11,i10],[i10,i00]];
+        for(const L of levels){
+          const pts=[];
+          for(const [p,q] of edges){ if((dn[p]-L)*(dn[q]-L)<0) pts.push(cross(p,q,L)); }
+          if(pts.length===2){ segs.push(pts[0],pts[1]); }
+          else if(pts.length===4){ segs.push(pts[0],pts[1], pts[2],pts[3]); }
+        }
+      }
+      const g=new T.BufferGeometry().setFromPoints(segs);
+      return new T.LineSegments(g,new T.LineBasicMaterial({color,transparent:true,opacity:opacity==null?0.65:opacity}));
+    }
+  }
+
+  /* ======================= a sphere + its decorations, rotatable in place ======================= */
+  class Unit{
+    constructor(nLat,nLon){
+      this.pivot=new T.Group();
+      this.sphere=new DensitySphere(nLat,nLon);
+      this.extras=new T.Group();
+      this.pivot.add(this.sphere.mesh); this.pivot.add(this.extras);
+      this.R=1;
+    }
+    setCenter(c){ this.pivot.position.copy(c); }
+    clearExtras(){ const g=this.extras; for(let i=g.children.length-1;i>=0;i--){ const c=g.children[i]; g.remove(c);
+      c.traverse&&c.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose(); }); } }
+  }
+
+  /* ======================= decoration builders (local coords) ======================= */
+  function thickArrow(dir,len,radius,color,opacity){
+    const g=new T.Group(); const tr=(opacity!=null&&opacity<1);
+    const mat=()=> new T.MeshLambertMaterial({color,transparent:tr,opacity:opacity==null?1:opacity,depthWrite:!tr});
+    const headLen=Math.min(0.26*len,5*radius), shaftLen=Math.max(0.001,len-headLen);
+    const shaft=new T.Mesh(new T.CylinderGeometry(radius,radius,shaftLen,18),mat());
+    shaft.position.y=shaftLen/2;
+    const head=new T.Mesh(new T.ConeGeometry(radius*2.3,headLen,22),mat());
+    head.position.y=shaftLen+headLen/2;
+    g.add(shaft,head);
+    g.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),dir.clone().normalize());
+    return g;
+  }
+  // small black ball at the origin, for vectors to emanate from
+  function centerBall(R){ const r=Math.max(0.03*R,0.02);
+    return new T.Mesh(new T.SphereGeometry(r,18,14),new T.MeshBasicMaterial({color:0x11161f})); }
+  function peakDot(dir,R,inner,size,shrink){
+    const g=new T.Group();
+    const q=new T.Quaternion().setFromUnitVectors(new T.Vector3(0,0,1),dir.clone().normalize());
+    const ro=((size||0.05)*R*0.74+0.010)*(shrink==null?1:shrink);   // smaller dots; shrink fades the whole dot to nothing
+    const halo=new T.Mesh(new T.CircleGeometry(ro,26),new T.MeshBasicMaterial({color:0xffffff,side:T.DoubleSide}));
+    halo.position.copy(dir).multiplyScalar(R*1.01); halo.quaternion.copy(q);
+    const dot=new T.Mesh(new T.CircleGeometry(ro*0.84,26),new T.MeshBasicMaterial({color:inner,side:T.DoubleSide})); // much thinner white rim
+    dot.position.copy(dir).multiplyScalar(R*1.013); dot.quaternion.copy(q);
+    g.add(halo,dot); return g;
+  }
+  // a small 3D ball marker (white-haloed) at dir*R — looks the same from every angle, so it reads
+  // clearly even when the cross-section plane is viewed face-on (a flat disc would vanish edge-on)
+  function peakBall(dir,R,color,rad){
+    const g=new T.Group(), p=dir.clone().multiplyScalar(R);
+    const w=new T.Mesh(new T.SphereGeometry(rad*1.4,18,12),new T.MeshBasicMaterial({color:0xffffff,transparent:true,depthTest:false}));
+    const d=new T.Mesh(new T.SphereGeometry(rad,18,12),new T.MeshBasicMaterial({color,transparent:true,depthTest:false}));
+    w.position.copy(p); d.position.copy(p); w.renderOrder=8; d.renderOrder=9; g.add(w,d); return g;
+  }
+  function lineSeg(pts,color,opacity,dashed){
+    pts=pts.filter(p=>p&&isFinite(p.x)&&isFinite(p.y)&&isFinite(p.z));
+    if(pts.length<2) return new T.Group();
+    const g=new T.BufferGeometry().setFromPoints(pts);
+    let m;
+    if(dashed){ const dot=dashed==='dot'; m=new T.LineDashedMaterial({color,transparent:true,opacity:opacity==null?1:opacity,dashSize:dot?0.035:0.11,gapSize:dot?0.05:0.08}); }
+    else { m=new T.LineBasicMaterial({color,transparent:true,opacity:opacity==null?1:opacity}); }
+    const l=new T.Line(g,m); if(dashed) l.computeLineDistances(); return l;
+  }
+  // a solid tube through pts (used to give construction lines real thickness + a halo)
+  function tube(pts,radius,color,ro){
+    pts=pts.filter(p=>p&&isFinite(p.x)&&isFinite(p.y)&&isFinite(p.z));
+    if(pts.length<2) return new T.Group();
+    const curve = pts.length===2 ? new T.LineCurve3(pts[0],pts[1]) : new T.CatmullRomCurve3(pts);
+    const seg = pts.length===2 ? 1 : Math.min(90,pts.length*3);
+    const mesh=new T.Mesh(new T.TubeGeometry(curve,seg,radius,8,false),
+      new T.MeshBasicMaterial({color,transparent:true,depthTest:false}));
+    mesh.renderOrder=ro; return mesh;
+  }
+  // construction line with a white halo, so it stays legible over dark-blue patches of the sphere
+  function haloLine(pts,color,coreR){
+    const g=new T.Group();
+    g.add(tube(pts,coreR*1.38+0.0007,0xffffff,5)); // thin halo underneath
+    g.add(tube(pts,coreR,color,7));                // coloured core on top
+    return g;
+  }
+  // "these lines are parallel" mark: a small double chevron ">>" pointing along u, lying in the
+  // plane (normal n). Put the same mark on both parallel lines, directly across from each other.
+  function chevron(p,u,n,size,color,plain){
+    u=u.clone().normalize();
+    const perp=new T.Vector3().crossVectors(n,u).normalize(); const g=new T.Group(); const cr=size*0.05;
+    const mk = plain ? (pp=>lineSeg(pp,color,1)) : (pp=>haloLine(pp,color,cr));
+    for(let c=0;c<2;c++){ const base=p.clone().addScaledVector(u,(c-0.5)*size*0.8);
+      const tip=base.clone().addScaledVector(u,size*0.5);
+      const b1=base.clone().addScaledVector(perp,size*0.6), b2=base.clone().addScaledVector(perp,-size*0.6);
+      g.add(mk([b1,tip])); g.add(mk([tip,b2])); }
+    return g;
+  }
+  // the two parallel lines run through pA (dir u) and pB (dir u); return chevrons on each, placed
+  // directly across from one another (pB's reference point and its perpendicular foot on pA's line)
+  function parPair(pA,pB,u,n,size,color,plain){
+    u=u.clone().normalize(); const g=new T.Group();
+    const foot=pA.clone().addScaledVector(u,pB.clone().sub(pA).dot(u));  // foot of perpendicular from pB onto line A
+    g.add(chevron(foot,u,n,size,color,plain)); g.add(chevron(pB,u,n,size,color,plain)); return g;
+  }
+  // draw a group of annotations on top of the (opaque) density sphere so vectors and the
+  // construction stay fully visible instead of being hidden inside the sphere
+  function overlay(g){ g.traverse(o=>{ if(o.material){ o.material.depthTest=false; o.material.transparent=true; } if(!o.renderOrder) o.renderOrder=6; }); return g; }
+  // in-plane frame (e2 toward w, n out of plane) and the peak-latitude angle alpha from v
+  function planeFrame(dvA,dvB){
+    const cosg=Math.max(-1,Math.min(1,dvA.dot(dvB))), gamma=Math.acos(cosg);
+    let e2=dvB.clone().addScaledVector(dvA,-cosg);
+    if(e2.length()<1e-5) e2=Math.abs(dvA.y)<0.9?new T.Vector3(0,1,0).cross(dvA):new T.Vector3(1,0,0).cross(dvA);
+    e2.normalize();
+    const n=new T.Vector3().crossVectors(dvA,e2).normalize();
+    return {e2,n,gamma};
+  }
+  // Peak marker: the coupled norm peaks at the single point m for every γ < π; only as v,w approach
+  // antiparallel does it degenerate to a circle (of height |a−b|). So we draw a point at m, and the
+  // ring only in the near-antipodal regime. (Front solid + depth-tested; back shown faint-dashed.)
+  function peakMarker(densFn, dvA, dvB, a, b, c, R, color){
+    const g=new T.Group(); const ringCol=COL.ring; const {e2,n,gamma}=planeFrame(dvA,dvB);
+    let arg=((b-a)/c)*Math.sin(gamma/2); arg=Math.max(-1,Math.min(1,arg));
+    const alpha=gamma/2+Math.asin(arg), ca=Math.cos(alpha), sa=Math.sin(alpha);
+    const pt=(psi)=> dvA.clone().multiplyScalar(ca).addScaledVector(e2,sa*Math.cos(psi)).addScaledVector(n,sa*Math.sin(psi));
+    const g0=Math.PI-0.349;                                     // transition starts 20° from antiparallel
+    if(gamma > g0){
+      const t=Math.min(1,(gamma-g0)/(Math.PI-g0));              // 0 at 160°, 1 at 180°
+      const lim=t*Math.PI;                                      // arc opens out from m, closing fully only at 180°
+      if(lim>0.01){
+        const M=Math.max(8,Math.round(150*lim/Math.PI)), pts=[];
+        for(let i=0;i<=M;i++) pts.push(pt(-lim+2*lim*i/M).multiplyScalar(R*1.012));
+        const ring=tube(pts,0.009*R+0.0045,ringCol,2);         // a thin tube so the width actually renders (bright red)
+        ring.material.opacity=t; ring.material.depthTest=true;  // fades in 0 → 1, occluded by the sphere front
+        g.add(ring);
+        const dash=lineSeg(pts,ringCol,0.4*t,true); overlay(dash); g.add(dash);
+      }
+      if(1-t>0.01) g.add(peakDot(pt(0),R,color,0.05,1-t));      // dot shrinks to nothing at 180°
+    } else {
+      g.add(peakDot(pt(0),R,color,0.05));                       // the single peak point m
+    }
+    return g;
+  }
+  // thin density-coloured band (a cross-section ring) of radius R in the plane spanned by u1,u2
+  function crossRing(densFn, R, bright, u1, u2, thick){
+    const N=200, dir=[], dv=[]; let mx=1e-12;
+    for(let i=0;i<=N;i++){ const th=2*Math.PI*i/N; const d=u1.clone().multiplyScalar(Math.cos(th)).addScaledVector(u2,Math.sin(th));
+      dir.push(d); const val=densFn(d); dv.push(val); if(val>mx)mx=val; }
+    const pos=[],col=[],idx=[], w=1-bright;
+    for(let i=0;i<=N;i++){ const dn=dv[i]/mx, base=ramp(dn);
+      const r0=base[0]*(1-w)+0.96*w, r1=base[1]*(1-w)+0.97*w, r2=base[2]*(1-w)+0.99*w;
+      const ip=dir[i].clone().multiplyScalar(R-thick), op=dir[i].clone().multiplyScalar(R+thick);
+      pos.push(ip.x,ip.y,ip.z, op.x,op.y,op.z); col.push(r0,r1,r2, r0,r1,r2); }
+    for(let i=0;i<N;i++){ const a=2*i; idx.push(a,a+1,a+2, a+2,a+1,a+3); }
+    const geo=new T.BufferGeometry();
+    geo.setAttribute('position',new T.Float32BufferAttribute(pos,3));
+    geo.setAttribute('color',new T.Float32BufferAttribute(col,3));
+    geo.setIndex(idx);
+    return new T.Mesh(geo,new T.MeshBasicMaterial({vertexColors:true,side:T.DoubleSide}));
+  }
+
+  /* ======================= panel: fixed camera, drag rotates the (shared) view ======================= */
+  class Panel{
+    constructor(canvas){
+      this.canvas=canvas;
+      this.renderer=new T.WebGLRenderer({canvas,antialias:true,alpha:false});
+      this.renderer.setClearColor(0xffffff,1);
+      this.renderer.localClippingEnabled=true;
+      this.scene=new T.Scene();
+      this.scene.add(new T.AmbientLight(0xffffff,0.8));
+      const dl=new T.DirectionalLight(0xffffff,0.5); dl.position.set(0.5,1,0.8); this.scene.add(dl);
+      this.camera=new T.PerspectiveCamera(42,1,0.01,200);
+      this.target=new T.Vector3(0,0,0);
+      this.viewDir=new T.Vector3(0,0,1); this.rad=8; this._hw=null; this._hh=null;
+      this.onRotate=null;
+      this._bind(); this.resize();
+    }
+    place(){ this.camera.position.copy(this.viewDir).multiplyScalar(this.rad).add(this.target); this.camera.lookAt(this.target); }
+    fit(hw,hh){ if(hw!=null){ this._hw=hw; this._hh=hh; }
+      if(this._hw==null){ this.place(); return; }
+      const t=Math.tan(this.camera.fov*Math.PI/360), asp=this.camera.aspect||1;
+      this.rad=Math.max(this._hw/(t*asp), this._hh/t)*1.08; this.place(); }
+    resize(){ const w=this.canvas.clientWidth||1,h=this.canvas.clientHeight||1,dpr=Math.min(window.devicePixelRatio||1,2);
+      this.renderer.setPixelRatio(dpr); this.renderer.setSize(w,h,false); this.camera.aspect=w/h; this.camera.updateProjectionMatrix(); this.fit(); }
+    rotate(dx,dy){
+      const camDir=this.camera.position.clone().sub(this.target).normalize();
+      const right=new T.Vector3().crossVectors(new T.Vector3(0,1,0),camDir).normalize();
+      const up=new T.Vector3().crossVectors(camDir,right).normalize();
+      const k=0.009;
+      const dq=new T.Quaternion().setFromAxisAngle(up,-dx*k).multiply(new T.Quaternion().setFromAxisAngle(right,-dy*k));
+      if(this.onRotate) this.onRotate(dq);
+    }
+    _bind(){
+      const cv=this.canvas; let last=null;
+      cv.addEventListener('pointerdown',(e)=>{ cv.setPointerCapture&&cv.setPointerCapture(e.pointerId); last={x:e.clientX,y:e.clientY}; cv.classList.add('dragging'); });
+      cv.addEventListener('pointermove',(e)=>{ if(!last) return; const dx=e.clientX-last.x,dy=e.clientY-last.y; last={x:e.clientX,y:e.clientY}; this.rotate(dx,dy); });
+      window.addEventListener('pointerup',()=>{ last=null; cv.classList.remove('dragging'); });
+      cv.addEventListener('wheel',(e)=>{ e.preventDefault(); this.rad*=(1+Math.sign(e.deltaY)*0.09); this.rad=Math.max(1.0,Math.min(90,this.rad)); this.place(); },{passive:false});
+    }
+    render(){ this.renderer.render(this.scene,this.camera); }
+  }
+
+  /* ======================= app ======================= */
+  const LAT=44, LON=60;
+  const COL={vec:0xe8710a, vec2:0xc7791e, sum:0xd6336c, bis:0x7c3aed, peak:0x11161f, cont:0x2a4a6a, ring:0xd6336c};
+  const CLIP=new T.Plane(new T.Vector3(0,0,-1),0);  // cut-away: remove the near half (z>0)
+  const state={ a:3,b:2, vLat:35,vLon:150, wLat:35,wLon:30, showVec:true, showVecF:true,
+    showContL:false, showContR:false, mode:'all', crossStyle:'rings', focusC:null,
+    showBis:true, showFull:false, showCrossC:false, showCrossPar:true, showVWray:false,
+    angleUnit:'deg', showSpheresL:true, exFmt:'png' };
+  let curN=new T.Vector3(0,0,1);  // current v,w-plane normal (cut plane + reset reference)
+  let cutActive=false;            // true while the cut-away cross-section is shown
+
+  const left=new Panel(document.getElementById('cv-left'));
+  const right=new Panel(document.getElementById('cv-right'));
+
+  // ONE global orientation shared by every sphere in both panels — input and output stay tied,
+  // the two left spheres rotate together, and only the whole view turns (never one sphere alone).
+  const gQuat=new T.Quaternion();
+  const DEFAULT_TILT=new T.Quaternion().setFromEuler(new T.Euler(-0.30,0.34,0));
+  gQuat.copy(DEFAULT_TILT);
+
+  const leftUnits=[new Unit(LAT,LON),new Unit(LAT,LON)];
+  leftUnits.forEach(u=>left.scene.add(u.pivot));
+  const rightPool=[]; function rightUnit(i){ while(rightPool.length<=i){ const u=new Unit(LAT,LON); right.scene.add(u.pivot); rightPool.push(u);} return rightPool[i]; }
+  function applyQuatAll(){ leftUnits.forEach(u=>u.pivot.quaternion.copy(gQuat)); rightPool.forEach(u=>u.pivot.quaternion.copy(gQuat)); }
+  left.onRotate=right.onRotate=(dq)=>{ gQuat.premultiply(dq); applyQuatAll(); };
+  const rimGroup=new T.Group(); right.scene.add(rimGroup); // cut-away rims (world-fixed cut plane)
+  function clearChildren(g){ for(let i=g.children.length-1;i>=0;i--){ const c=g.children[i]; g.remove(c); c.traverse&&c.traverse(o=>{ o.geometry&&o.geometry.dispose(); o.material&&o.material.dispose(); }); } }
+
+  /* overlay labels (both panels) */
+  const ovRight=document.getElementById('ov-right'), ovLeft=document.getElementById('ov-left');
+  let rightLabels=[], leftLabels=[];
+  function makeLabels(container,list){ const out=[];
+    list.forEach(it=>{ const el=document.createElement('div'); el.className='olabel'; el.innerHTML=it.html; container.appendChild(el);
+      out.push({el,local:it.local,pivot:it.pivot}); }); return out; }
+  function setRightLabels(list){ rightLabels.forEach(l=>l.el.remove()); rightLabels=makeLabels(ovRight,list); }
+  function setLeftLabels(list){ leftLabels.forEach(l=>l.el.remove()); leftLabels=makeLabels(ovLeft,list); }
+  function projOne(panel,labels){ const r=panel.canvas.getBoundingClientRect();
+    labels.forEach(l=>{ const world=l.pivot?l.pivot.localToWorld(l.local.clone()):l.local.clone();
+      const v=world.project(panel.camera); if(v.z>1||v.z<-1){ l.el.style.display='none'; return; } l.el.style.display='';
+      l.el.style.left=((v.x*0.5+0.5)*r.width)+'px'; l.el.style.top=((-v.y*0.5+0.5)*r.height)+'px'; }); }
+  function projectLabels(){ projOne(right,rightLabels); projOne(left,leftLabels); }
+
+  /* coupled density evaluation */
+  function prepDensity(c,betaHat){ const wr=new Float64Array(c+1), wi=new Float64Array(c+1);
+    for(let i=0;i<=c;i++){ const s=Math.sqrt(binom(c,i)); wr[i]=s*betaHat.re[i]; wi[i]=s*betaHat.im[i]; } return {wr,wi,c}; }
+  function coupledDensity(dir,c,w){
+    const phi=Math.acos(Math.max(-1,Math.min(1,dir.y))), theta=Math.atan2(dir.z,dir.x);
+    const s=Math.sin(phi/2), cc=Math.cos(phi/2), p0r=Math.cos(theta)*s, p0i=Math.sin(theta)*s;
+    let pr=1,pi=0,ar=0,ai=0;
+    for(let I=0;I<=c;I++){ const p1=Math.pow(cc,c-I);
+      ar+=(w.wr[I]*pr-w.wi[I]*pi)*p1; ai+=(w.wr[I]*pi+w.wi[I]*pr)*p1;
+      const nr=pr*p0r-pi*p0i, ni=pr*p0i+pi*p0r; pr=nr; pi=ni; }
+    return ar*ar+ai*ai;
+  }
+
+  const fmt=(x)=> (Math.round(x*1000)/1000).toFixed(3);
+  const halfStr=(k)=> (k%2===0)?String(k/2):(k+'⁄2');
+  // express a radian value as a tidy fraction of π (π/2, 2π/3, …); else a decimal multiple of π
+  function piFrac(rad){
+    if(Math.abs(rad)<1e-9) return '0';
+    const m=rad/Math.PI, sign=m<0?'−':'', am=Math.abs(m);
+    for(let q=1;q<=12;q++){ const p=Math.round(am*q); if(p>0 && Math.abs(am-p/q)<1e-4){
+      const gg=gcd(p,q), P=p/gg, Q=q/gg, num=(P===1?'π':P+'π'); return sign+(Q===1?num:num+'/'+Q); } }
+    return sign+am.toFixed(3)+'π';
+  }
+  // angle value (given in degrees) formatted in the currently-selected unit
+  function fmtDeg(deg){
+    if(state.angleUnit==='rad') return piFrac(deg*Math.PI/180);
+    const d=Math.round(deg*10)/10; return (Number.isInteger(d)?String(d):d.toFixed(1))+'°';  // whole degrees have no decimal
+  }
+
+  function recompute(doFit){
+    const a=state.a,b=state.b;
+    const dvA=dirFromLatLon(state.vLat,state.vLon), dvB=dirFromLatLon(state.wLat,state.wLon);
+    const angA=angles(dvA), angB=angles(dvB);
+    const vecA=coherentVec(a,angA.theta,angA.phi), vecB=coherentVec(b,angB.theta,angB.phi);
+    const RA=a/2, RB=b/2;
+    const gamma=Math.acos(Math.max(-1,Math.min(1,dvA.dot(dvB)))), gammaDeg=gamma*180/Math.PI;
+    curN=dvA.clone().cross(dvB);
+    if(curN.length()<1e-4) curN=Math.abs(dvA.y)<0.9?new T.Vector3(0,1,0).cross(dvA):new T.Vector3(1,0,0).cross(dvA);
+    curN.normalize();
+    const {e2,n:planeN}=planeFrame(dvA,dvB);
+    // in-plane (X along v, Y toward w) -> 3D, shared by the construction drawing
+    const P3=(x,y)=> dvA.clone().multiplyScalar(x).addScaledVector(e2,y);
+    const arc2=(cx,cy,a1,a2,rad,col,op)=>{ const pts=[], N=Math.max(6,Math.round(30*Math.abs(a2-a1)/Math.PI));
+      for(let i=0;i<=N;i++){ const t=a1+(a2-a1)*i/N; pts.push(P3(cx+rad*Math.cos(t),cy+rad*Math.sin(t))); }
+      return lineSeg(pts,col,op==null?0.95:op); };
+    // v, w, v+w, bisector, and the line through v+w parallel to the bisector — the peaks of every
+    // channel lie on this one line, so it shows how the nested peak points are related.
+    function addCrossConstruction(grp,maxR,style){
+      const A=a/2,B=b/2, sg=Math.sin(gamma), cg=Math.cos(gamma), s2=[A+B*cg, B*sg];
+      let bx=1+cg,by=sg; const bl=Math.hypot(bx,by)||1; bx/=bl; by/=bl;
+      const bis3=P3(bx,by), r=0.009*maxR+0.0045, tk=0.05*Math.max(maxR,0.6);
+      if(state.showCrossC){
+        grp.add(centerBall(maxR));
+        // v, w and v+w — all the same thickness
+        grp.add(thickArrow(dvA,A,r,COL.vec,0.95));
+        grp.add(thickArrow(dvB,B,r,COL.vec2,0.95));
+        const slen=Math.hypot(s2[0],s2[1])||1;
+        grp.add(thickArrow(P3(s2[0],s2[1]).multiplyScalar(1/slen),slen,r,COL.sum,0.95));
+        // the v+w parallelogram (v+w = v + w), dotted in the v+w colour
+        grp.add(lineSeg([P3(A,0),P3(s2[0],s2[1])],COL.sum,0.6,'dot'));            // v -> v+w  (∥ w)
+        grp.add(lineSeg([P3(B*cg,B*sg),P3(s2[0],s2[1])],COL.sum,0.6,'dot'));      // w -> v+w  (∥ v)
+        // one parallelogram per peak: m_c = pA·v̂ + pB·ŵ, with the SAME length added to / subtracted
+        // from v and w. v and w are extended with dotted lines to reach the outer corners.
+        if(sg>0.02){
+          allowedC(a,b).forEach(c=>{
+            const Rc=c/2, pk=peakDir(a,b,c,dvA,dvB).dir;
+            const mX=Rc*pk.dot(dvA), mY=Rc*pk.dot(e2);
+            const pB=mY/sg, pA=mX-pB*cg;
+            const Pv=P3(pA,0), Pw=P3(pB*cg,pB*sg), M=P3(mX,mY);
+            if(pA>A+1e-4) grp.add(lineSeg([P3(A,0),Pv],COL.vec,0.6,'dot'));        // extend v
+            if(pB>B+1e-4) grp.add(lineSeg([P3(B*cg,B*sg),Pw],COL.vec2,0.6,'dot')); // extend w
+            grp.add(lineSeg([Pv,M],COL.vec2,0.55,true));  // side ∥ w
+            grp.add(lineSeg([Pw,M],COL.vec,0.55,true));   // side ∥ v
+          });
+        }
+      }
+      // bisector + ∥-bisector line through v+w + chevrons; plain lines for rings (already legible),
+      // haloed tubes for the cut-away. Controlled by its own "Parallel lines" toggle.
+      if(state.showCrossPar && by>0.04){
+        const plain = style==='rings';
+        const mk = plain ? (pp=>lineSeg(pp,COL.bis,0.95)) : (pp=>haloLine(pp,COL.bis,0.0028*maxR+0.0011));
+        grp.add(mk([P3(-0.4*maxR*bx,-0.4*maxR*by),P3(1.3*maxR*bx,1.3*maxR*by)]));  // bisector
+        const L=2.2*maxR;
+        grp.add(mk([P3(s2[0]-L*bx,s2[1]-L*by),P3(s2[0]+L*bx,s2[1]+L*by)]));          // ∥ bisector through v+w
+        const cref=[s2[0]+0.3*maxR*bx, s2[1]+0.3*maxR*by];
+        grp.add(parPair(P3(0,0),P3(cref[0],cref[1]),bis3,planeN,tk,COL.bis,plain)); // chevrons
+      }
+    }
+
+    /* ---------- LEFT ---------- */
+    const gap=0.55*Math.max(RA,RB)+0.35, centerDist=RA+RB+gap;
+    const uA=leftUnits[0], uB=leftUnits[1];
+    uA.setCenter(new T.Vector3(-centerDist/2,0,0)); uB.setCenter(new T.Vector3(centerDist/2,0,0));
+    uA.R=RA; uB.R=RB;
+    uA.sphere.update(dir=>Math.pow(Math.max(0,(1+dir.dot(dvA))/2),a),RA,1);
+    uB.sphere.update(dir=>Math.pow(Math.max(0,(1+dir.dot(dvB))/2),b),RB,1);
+    [[uA,dvA,RA,COL.vec],[uB,dvB,RB,COL.vec2]].forEach(([u,dv,R,colr])=>{
+      u.clearExtras();
+      u.sphere.mesh.visible=state.showSpheresL;
+      if(state.showSpheresL && state.showContL) u.extras.add(u.sphere.contours([0.8,0.6,0.4,0.2,0.08],COL.cont,0.6));
+      if(state.showVec){ const rad=0.026*R+0.009, ann=new T.Group();
+        ann.add(centerBall(R));
+        // with the sphere hidden there is nothing to sit "inside", so draw the vector solid and drop the surface dot
+        ann.add(thickArrow(dv,R*1.0,rad,colr, state.showSpheresL?0.62:1));
+        if(state.showSpheresL) ann.add(peakDot(dv,R,COL.peak,0.05));
+        u.extras.add(overlay(ann)); }
+    });
+    // radius (= j) label beneath each input sphere, tinted to its vector's colour
+    setLeftLabels([
+      {html:`<div class="olP" style="color:#b5560a">j = ${halfStr(a)}</div><div class="olsub">radius ${halfStr(a)}</div>`, local:new T.Vector3(-centerDist/2,-RA-0.30,0), pivot:null},
+      {html:`<div class="olP" style="color:#9a5e17">j = ${halfStr(b)}</div><div class="olsub">radius ${halfStr(b)}</div>`, local:new T.Vector3( centerDist/2,-RB-0.30,0), pivot:null},
+    ]);
+    if(doFit) left.fit(centerDist/2+Math.max(RA,RB)+0.15, Math.max(RA,RB)+0.62);
+    document.getElementById('corner-left').innerHTML =
+      `v: a=${a} (j=${halfStr(a)})   lat ${fmtDeg(state.vLat)}, lon ${fmtDeg(state.vLon)}<br>w: b=${b} (j=${halfStr(b)})   lat ${fmtDeg(state.wLat)}, lon ${fmtDeg(state.wLon)}<br>γ = ∠(v,w) = ${fmtDeg(gammaDeg)}`;
+
+    /* ---------- coupling (with radical expressions) ---------- */
+    const cs=allowedC(a,b);
+    const data=cs.map(c=>{ const cv=coupledVec(a,b,c,vecA,vecB); const P=cv.lambda*cv.lambda;
+      return {c,lambda:cv.lambda,vec:cv,P,radL:radical(P),ratP:ratio(P)}; });
+    const sumsq=data.reduce((s,d)=>s+d.P,0);
+    document.getElementById('cg-warn').textContent = Math.abs(sumsq-1)>1e-6 ? ('Σλ²='+fmt(sumsq)+' ⚠') : '';
+    if(state.focusC==null || cs.indexOf(state.focusC)<0) state.focusC=cs[cs.length-1];
+    const maxLam=Math.max(...data.map(d=>d.lambda),1e-9);
+    const densOf=(d)=>{ const bH={re:d.vec.re.map(v=>v/(d.lambda||1)),im:d.vec.im.map(v=>v/(d.lambda||1))};
+      const w=prepDensity(d.c,bH); return dir=>coupledDensity(dir,d.c,w); };
+
+    /* ---------- chips ---------- */
+    const chips=document.getElementById('chips'); chips.innerHTML='';
+    data.forEach(d=>{ const btn=document.createElement('button'); btn.className='chip'; btn.type='button';
+      btn.setAttribute('aria-pressed',(state.mode==='focus'&&d.c===state.focusC)?'true':'false');
+      btn.innerHTML=`<div class="chip-top"><span class="ch-j">j=${halfStr(d.c)}</span><span class="ch-c">V<sub>${d.c}</sub></span></div>`+
+        `<span class="ch-lam">λ = ${d.radL?d.radL+' = ':''}${fmt(d.lambda)}</span>`+
+        `<div class="bar-outer"><div class="bar-inner" style="width:${(d.lambda/maxLam*100).toFixed(1)}%"></div></div>`+
+        `<span class="ch-p">P = ${d.ratP?d.ratP+' = ':''}${fmt(d.P)}</span>`;
+      btn.addEventListener('click',()=>{ state.focusC=d.c; if(state.mode!=='focus') setMode('focus'); else recompute(true); });
+      chips.appendChild(btn);
+    });
+
+    /* ---------- RIGHT ---------- */
+    rightPool.forEach(u=>{ u.pivot.visible=false; u.sphere.mesh.visible=true; u.sphere.mesh.material.clippingPlanes=null; });
+    clearChildren(rimGroup); cutActive=false;
+    document.getElementById('cross-tools').hidden = state.mode!=='cross';
+    document.getElementById('focus-tools').hidden = state.mode!=='focus';
+
+    if(state.mode==='all'){
+      document.getElementById('right-title').textContent='Coupled states';
+      document.getElementById('right-tag').innerHTML='V<sub>a</sub>⊗V<sub>b</sub> ≅ ⊕<sub>c</sub> V<sub>c</sub>';
+      const radii=data.map(d=>d.c/2), gaps=0.5*Math.max(...radii,0.5)+0.3;
+      let totalW=radii.reduce((s,r)=>s+2*r,0)+gaps*(radii.length-1), x=-totalW/2;
+      const labels=[];
+      data.forEach((d,i)=>{ const R=d.c/2, cx=x+R; x+=2*R+gaps;
+        const u=rightUnit(i); u.pivot.visible=true; u.R=R; u.setCenter(new T.Vector3(cx,0,0));
+        const bright=0.25+0.75*(d.lambda/maxLam), densF=densOf(d);
+        u.sphere.update(densF,R,bright);
+        u.clearExtras();
+        if(state.showContR) u.extras.add(u.sphere.contours([0.8,0.6,0.4,0.2,0.08],COL.cont,0.6));
+        u.extras.add(peakMarker(densF,dvA,dvB,a,b,d.c,R,COL.ring));
+        labels.push({html:`<div class="olP">P = ${d.ratP?d.ratP:fmt(d.P)}</div><div class="olsub">j=${halfStr(d.c)} · λ=${d.radL?d.radL:fmt(d.lambda)}</div>`,
+          local:new T.Vector3(cx,-R-0.34,0),pivot:null});
+      });
+      setRightLabels(labels);
+      if(doFit) right.fit(totalW/2+0.3, Math.max(...radii,0.5)+0.7);
+      document.getElementById('corner-right').innerHTML=`${cs.length} channel${cs.length>1?'s':''}: c = ${cs.join(', ')}`;
+
+    } else if(state.mode==='cross'){
+      document.getElementById('right-title').textContent='Cross-section';
+      document.querySelectorAll('#cross-seg button').forEach(bt=>bt.setAttribute('aria-pressed',bt.dataset.cross===state.crossStyle?'true':'false'));
+      const maxR=Math.max(...data.map(d=>d.c/2));
+
+      if(state.crossStyle==='rings'){
+        document.getElementById('right-tag').innerHTML='nested rings in the v,w plane';
+        const u1=dvA.clone(), u2=e2;
+        const u=rightUnit(0); u.pivot.visible=true; u.setCenter(new T.Vector3(0,0,0)); u.sphere.mesh.visible=false; u.clearExtras();
+        data.forEach(d=>{ const R=d.c/2, bright=0.3+0.7*(d.lambda/maxLam), densF=densOf(d);
+          u.extras.add(crossRing(densF,R,bright,u1,u2,0.03*maxR+0.012));
+          const outline=[]; for(let i=0;i<=120;i++){ const th=2*Math.PI*i/120; outline.push(u1.clone().multiplyScalar(Math.cos(th)).addScaledVector(u2,Math.sin(th)).multiplyScalar(R)); }
+          u.extras.add(lineSeg(outline,COL.cont,0.28));
+          const pdir=peakDir(a,b,d.c,dvA,dvB).dir;
+          u.extras.add(overlay(lineSeg([new T.Vector3(0,0,0),pdir.clone().multiplyScalar(R)],COL.peak,0.28)));
+          u.extras.add(peakBall(pdir,R,COL.peak,0.02*maxR+0.013));   // 3D ball: stays clear when viewed face-on
+        });
+        if(state.showCrossC||state.showCrossPar){ const cg=new T.Group(); addCrossConstruction(cg,maxR,'rings'); u.extras.add(overlay(cg)); }
+        setRightLabels([]);
+        if(doFit) right.fit(maxR*1.3+0.3, maxR*1.3+0.3);
+      } else {
+        document.getElementById('right-tag').innerHTML='nested shells · cut along the v,w plane';
+        cutActive=true;   // tick() keeps CLIP aligned to the (rotating) v,w plane
+        const outlineU=rightUnit(0);
+        data.forEach((d,i)=>{ const R=d.c/2, u=rightUnit(i); u.pivot.visible=true; u.R=R; u.setCenter(new T.Vector3(0,0,0));
+          const bright=0.3+0.7*(d.lambda/maxLam), densF=densOf(d);
+          u.sphere.update(densF,R,bright);
+          u.sphere.mesh.material.clippingPlanes=[CLIP];
+          u.clearExtras();
+          if(state.showContR){ const ct=u.sphere.contours([0.8,0.6,0.4,0.2,0.08],COL.cont,0.6); ct.material.clippingPlanes=[CLIP]; u.extras.add(ct); }
+          const rim=[]; for(let j=0;j<=160;j++){ const th=2*Math.PI*j/160; rim.push(dvA.clone().multiplyScalar(Math.cos(th)*R).addScaledVector(e2,Math.sin(th)*R)); }
+          u.extras.add(lineSeg(rim,COL.peak,0.7));   // dark border on each hemisphere's cut edge (rotates with the sphere)
+          u.extras.add(overlay(new T.Group().add(peakDot(peakDir(a,b,d.c,dvA,dvB).dir,R,COL.peak,0.045))));
+        });
+        if(state.showCrossC||state.showCrossPar){ const cg=new T.Group(); addCrossConstruction(cg,maxR,'cutaway'); outlineU.extras.add(overlay(cg)); }
+        setRightLabels([]);
+        if(doFit) right.fit(maxR*1.12+0.3, maxR*1.12+0.3);
+      }
+      document.getElementById('corner-right').innerHTML=`${data.length} shells · c = ${cs.join(', ')}`;
+
+    } else {
+      /* ---------- focused ---------- */
+      const d=data.find(x=>x.c===state.focusC)||data[data.length-1]; const c=d.c, R=c/2;
+      document.getElementById('right-title').innerHTML=`Focused: V<sub>${c}</sub>  (j=${halfStr(c)})`;
+      document.getElementById('right-tag').innerHTML=`λ<sup>(${c})</sup> = ${d.radL?d.radL+' = ':''}${fmt(d.lambda)}  ·  P = ${d.ratP?d.ratP+' = ':''}${fmt(d.P)}`;
+      const u=rightUnit(0); u.pivot.visible=true; u.R=R; u.setCenter(new T.Vector3(0,0,0));
+      const densF=densOf(d);
+      u.sphere.update(densF,R,1);
+      u.clearExtras();
+      if(state.showContR) u.extras.add(u.sphere.contours([0.8,0.6,0.4,0.2,0.08],COL.cont,0.6));
+      u.extras.add(peakMarker(densF,dvA,dvB,a,b,c,R,0x000000));   // peak point m in black
+      const ann=new T.Group();
+      const vVec=dvA.clone().multiplyScalar(a/2), wVec=dvB.clone().multiplyScalar(b/2), sumVec=vVec.clone().add(wVec);
+      const pk=peakDir(a,b,c,dvA,dvB);
+      if(state.showVecF){ const rad=0.012*R+0.0048;   // v, w and v+w all the same thickness
+        ann.add(centerBall(R));
+        ann.add(thickArrow(dvA,a/2,rad,COL.vec,0.6));
+        ann.add(thickArrow(dvB,b/2,rad,COL.vec2,0.6));
+        ann.add(thickArrow(sumVec.clone().normalize(),sumVec.length(),rad,COL.sum,0.6));
+      }
+      const labelsF=[];
+      // optional radial ray through v+w out to the sphere — the peak m is NOT the radial projection
+      // of v+w (they coincide only when a=b), and the grey dot marks where that projection lands
+      if(state.showVWray && sumVec.length()>1e-6){
+        const sumHat=sumVec.clone().normalize(), hit=sumHat.clone().multiplyScalar(R);
+        ann.add(lineSeg([new T.Vector3(0,0,0),hit],COL.sum,0.55,'dot'));
+        ann.add(peakDot(sumHat,R,COL.sum,0.045));   // radial(v+w) landing point, in the v+w colour
+      }
+      if(!pk.degenerate && (state.showBis||state.showFull)){
+        // 2D construction coordinates in the v,w plane (X along v, Y toward w), half-lengths
+        const Av=a/2, Bw=b/2;
+        const v2=[Av,0], w2=[Bw*Math.cos(gamma),Bw*Math.sin(gamma)], s2=[v2[0]+w2[0],v2[1]+w2[1]];
+        let bx=1+Math.cos(gamma), by=Math.sin(gamma); const bl=Math.hypot(bx,by)||1; bx/=bl; by/=bl;
+        const m2=[R*pk.dir.dot(dvA), R*pk.dir.dot(e2)];
+        const bis3=P3(bx,by), sz=0.065*Math.max(R,0.6);
+        // parallelogram 1: v, w -> v+w (completing sides, dashed)
+        ann.add(lineSeg([P3(v2[0],v2[1]),P3(s2[0],s2[1])],COL.vec,0.4,true));
+        ann.add(lineSeg([P3(w2[0],w2[1]),P3(s2[0],s2[1])],COL.vec2,0.4,true));
+        // bisector ray through O, and the line from v+w parallel to it out to m (haloed for contrast)
+        const cr=0.0028*R+0.0011;
+        ann.add(haloLine([P3(-R*0.5*bx,-R*0.5*by),P3(R*1.35*bx,R*1.35*by)],COL.bis,cr));
+        ann.add(haloLine([P3(s2[0],s2[1]),P3(m2[0],m2[1])],COL.bis,cr));
+        // "parallel" chevrons on the two lines, placed directly across from each other
+        const mmid=[(s2[0]+m2[0])/2,(s2[1]+m2[1])/2];
+        ann.add(parPair(P3(0,0),P3(mmid[0],mmid[1]),bis3,planeN,sz,COL.bis));
+
+        if(state.showFull){
+          const fc=COL.peak;
+          // parallelogram 2: O, v+w, m, D  — the parallel translation that carries v+w to m
+          const D2=[m2[0]-s2[0], m2[1]-s2[1]];
+          ann.add(lineSeg([P3(0,0),P3(D2[0],D2[1])],COL.bis,0.45,true));
+          ann.add(lineSeg([P3(D2[0],D2[1]),P3(m2[0],m2[1])],COL.bis,0.45,true));
+          // c side of the triangle (O -> m)
+          ann.add(lineSeg([P3(0,0),P3(m2[0],m2[1])],fc,0.85));
+          const phB=Math.atan2(by,bx), phM=Math.atan2(m2[1],m2[0]), r1=0.26*R, r2=0.4*R;
+          ann.add(arc2(0,0,0,phB,r1,COL.vec,0.95));            // γ/2  (v -> bisector)
+          ann.add(arc2(0,0,phB,phM,r2,fc,0.95));                // α-γ/2 (bisector -> Om)
+          labelsF.push(
+            {html:`<span style="font-size:11px;color:#c7791e">γ⁄2</span>`,local:P3((r1+0.08)*Math.cos(phB/2),(r1+0.08)*Math.sin(phB/2)),pivot:u.pivot},
+            {html:`<span style="font-size:11px;color:#11161f">α−γ⁄2</span>`,local:P3((r2+0.1)*Math.cos((phB+phM)/2),(r2+0.1)*Math.sin((phB+phM)/2)),pivot:u.pivot},
+            {html:`<span style="font-size:11px;color:#11161f">c⁄2</span>`,local:P3(m2[0]*0.52,m2[1]*0.52),pivot:u.pivot});
+          // law-of-sines triangle: X on the bisector where the line through m parallel to v meets it,
+          // so ∠OXm = γ/2 and Xm = |b−a|/2 — the identity sin(α−γ/2)/(b−a) = sin(γ/2)/c
+          if(a!==b && by>0.08){
+            const tX=m2[1]/by, X2=[tX*bx,tX*by];
+            ann.add(lineSeg([P3(X2[0],X2[1]),P3(m2[0],m2[1])],fc,0.85));       // |b−a| side (∥ v)
+            const aXO=Math.atan2(-X2[1],-X2[0]), aXm=Math.atan2(m2[1]-X2[1],m2[0]-X2[0]);
+            ann.add(arc2(X2[0],X2[1],aXO,aXm,0.18*R,fc,0.95));                  // γ/2 at X
+            labelsF.push(
+              {html:`<span style="font-size:11px;color:#11161f">|b−a|⁄2</span>`,local:P3((X2[0]+m2[0])/2,(X2[1]+m2[1])/2+0.06*R),pivot:u.pivot},
+              {html:`<span style="font-size:11px;color:#8a93a3">X</span>`,local:P3(X2[0]*1.05,X2[1]*1.05),pivot:u.pivot});
+          }
+        }
+      }
+      u.extras.add(overlay(ann));
+      if(state.showVecF) labelsF.push(
+        {html:`<span style="color:var(--amber)">v</span>`,local:dvA.clone().multiplyScalar(a/2*1.14),pivot:u.pivot},
+        {html:`<span style="color:#c7791e">w</span>`,local:dvB.clone().multiplyScalar(b/2*1.14),pivot:u.pivot},
+        {html:`<span style="color:var(--pink)">v+w</span>`,local:sumVec.clone().multiplyScalar(1.1),pivot:u.pivot});
+      labelsF.push({html:`<span style="color:#11161f">⬤ m</span>`,local:pk.dir.clone().multiplyScalar(R*1.16),pivot:u.pivot});
+      setRightLabels(labelsF);
+      if(doFit){ const ext=Math.max(R,sumVec.length(),a/2,b/2); right.fit(ext+0.35, ext+0.35); }
+      document.getElementById('corner-right').innerHTML=`peak α = ${fmtDeg(peakAlpha(a,b,c,gamma))} from v`;
+    }
+    applyQuatAll();
+  }
+  function peakAlpha(a,b,c,gamma){ let arg=((b-a)/c)*Math.sin(gamma/2); arg=Math.max(-1,Math.min(1,arg));
+    return (gamma/2+Math.asin(arg))*180/Math.PI; }
+
+  /* ======================= UI ======================= */
+  function setMode(m){ state.mode=m;
+    document.querySelectorAll('#mode-seg button').forEach(btn=>btn.setAttribute('aria-pressed',btn.dataset.mode===m?'true':'false'));
+    recompute(true);
+  }
+  document.querySelectorAll('#mode-seg button').forEach(btn=>btn.addEventListener('click',()=>setMode(btn.dataset.mode)));
+
+  function clampSpin(v){ return Math.max(1,Math.min(9,v)); }
+  function stepSpin(which,d){
+    if(which==='a') state.a=clampSpin(state.a+d); else state.b=clampSpin(state.b+d);
+    document.getElementById('a-val').textContent=state.a;
+    document.getElementById('b-val').textContent=state.b;
+    document.getElementById('a-len').innerHTML='|v|='+halfStr(state.a);
+    document.getElementById('b-len').innerHTML='|w|='+halfStr(state.b);
+    state.focusC=null; recompute(true);
+  }
+  document.querySelectorAll('#spin-a button').forEach(btn=>btn.addEventListener('click',()=>stepSpin('a',+btn.dataset.d)));
+  document.querySelectorAll('#spin-b button').forEach(btn=>btn.addEventListener('click',()=>stepSpin('b',+btn.dataset.d)));
+
+  // vector latitude / longitude sliders
+  function bindLatLon(id,key){ const inp=document.getElementById(id), lab=document.getElementById(id+'-v');
+    inp.addEventListener('input',e=>{ state[key]=+e.target.value; lab.textContent=fmtDeg(state[key]); recompute(false); }); }
+  bindLatLon('v-lat','vLat'); bindLatLon('v-lon','vLon'); bindLatLon('w-lat','wLat'); bindLatLon('w-lon','wLon');
+  function refreshAngleLabels(){ [['v-lat','vLat'],['v-lon','vLon'],['w-lat','wLat'],['w-lon','wLon']].forEach(([id,key])=>{ document.getElementById(id+'-v').textContent=fmtDeg(state[key]); }); }
+  refreshAngleLabels();
+  document.querySelectorAll('#unit-seg button').forEach(btn=>btn.addEventListener('click',()=>{
+    state.angleUnit=btn.dataset.unit;
+    document.querySelectorAll('#unit-seg button').forEach(b=>b.setAttribute('aria-pressed',b===btn?'true':'false'));
+    refreshAngleLabels(); recompute(false);
+  }));
+
+  document.getElementById('t-sph').addEventListener('change',e=>{state.showSpheresL=e.target.checked; recompute(false);});
+  document.getElementById('t-vec').addEventListener('change',e=>{state.showVec=e.target.checked; recompute(false);});
+  document.getElementById('t-cont').addEventListener('change',e=>{state.showContL=e.target.checked; recompute(false);});
+  document.getElementById('t-cont-r').addEventListener('change',e=>{state.showContR=e.target.checked; recompute(false);});
+  document.getElementById('t-bis').addEventListener('change',e=>{state.showBis=e.target.checked; recompute(false);});
+  document.getElementById('t-full').addEventListener('change',e=>{state.showFull=e.target.checked; recompute(false);});
+  document.getElementById('t-vecf').addEventListener('change',e=>{state.showVecF=e.target.checked; recompute(false);});
+  document.getElementById('t-crossc').addEventListener('change',e=>{state.showCrossC=e.target.checked; recompute(false);});
+  document.getElementById('t-crosspar').addEventListener('change',e=>{state.showCrossPar=e.target.checked; recompute(false);});
+  document.getElementById('t-vwray').addEventListener('change',e=>{state.showVWray=e.target.checked; recompute(false);});
+  document.querySelectorAll('#cross-seg button').forEach(btn=>btn.addEventListener('click',()=>{ state.crossStyle=btn.dataset.cross; recompute(true); }));
+  // Reset orientation: north pole up, zero-longitude axis to the right (identity view).
+  document.getElementById('reset-btn').addEventListener('click',()=>{ gQuat.identity(); applyQuatAll(); });
+
+  document.querySelectorAll('#layout-seg button').forEach(btn=>btn.addEventListener('click',()=>{
+    document.querySelectorAll('#layout-seg button').forEach(b=>b.setAttribute('aria-pressed',b===btn?'true':'false'));
+    document.getElementById('views').setAttribute('data-layout',btn.dataset.layout);
+    setTimeout(onResize,40);
+  }));
+
+  document.getElementById('theme-btn').addEventListener('click',()=>{
+    const cur=document.documentElement.getAttribute('data-theme');
+    const sysDark=window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches;
+    const isDark=cur?cur==='dark':sysDark;
+    document.documentElement.setAttribute('data-theme',isDark?'light':'dark');
+  });
+
+  /* ======================= export (PNG / PDF) ======================= */
+  document.querySelectorAll('#exfmt-seg button').forEach(btn=>btn.addEventListener('click',()=>{
+    state.exFmt=btn.dataset.fmt;
+    document.querySelectorAll('#exfmt-seg button').forEach(b=>b.setAttribute('aria-pressed',b===btn?'true':'false'));
+  }));
+  document.getElementById('ex-left').addEventListener('click',()=>exportViews(['left']));
+  document.getElementById('ex-right').addEventListener('click',()=>exportViews(['right']));
+  document.getElementById('ex-both').addEventListener('click',()=>exportViews(['left','right']));
+
+  const panelAspect=(p)=> (p.canvas.clientWidth||4)/(p.canvas.clientHeight||3);
+  const reqRad=(p,asp)=>{ const tf=Math.tan(p.camera.fov*Math.PI/360); return Math.max(p._hw/(tf*asp), p._hh/tf)*1.08; };
+  // render one panel's scene to an off-screen canvas at high resolution, then draw its labels + caption on top
+  let exRenderer=null;   // one reused off-screen renderer, so repeated exports never exhaust WebGL contexts
+  function renderPanel(panel,labels,capId,W,H,pxpu){
+    if(!exRenderer){ exRenderer=new T.WebGLRenderer({antialias:true,preserveDrawingBuffer:true,alpha:false});
+      exRenderer.setClearColor(0xffffff,1); exRenderer.localClippingEnabled=true; exRenderer.setPixelRatio(1); }
+    const r=exRenderer; r.setSize(W,H,false);
+    if(pxpu==null) pxpu=Math.min(W/(2*panel._hw*1.08), H/(2*panel._hh*1.08));  // fit this panel's content
+    const hw=W/(2*pxpu), hh=H/(2*pxpu);
+    // orthographic: every sphere is a perfect circle at one uniform scale (no perspective flattening)
+    const cam=new T.OrthographicCamera(-hw,hw,hh,-hh,1,400);
+    cam.position.copy(panel.viewDir).multiplyScalar(200).add(panel.target); cam.up.set(0,1,0); cam.lookAt(panel.target); cam.updateProjectionMatrix();
+    r.render(panel.scene,cam);
+    const out=document.createElement('canvas'); out.width=W; out.height=H; const ctx=out.getContext('2d');
+    ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H); ctx.drawImage(r.domElement,0,0,W,H);
+    const livePU=(panel.canvas.clientHeight||H)/2/(panel.rad*Math.tan(panel.camera.fov*Math.PI/360));
+    const sc=pxpu/livePU;   // scale labels with the rendered sphere size
+    drawLabels(ctx,cam,labels,W,H,sc);
+    if(capId) drawCaption(ctx,capId,sc);
+    return out;
+  }
+  function drawLabels(ctx,cam,labels,W,H,sc){
+    ctx.textAlign='center'; ctx.lineJoin='round';
+    labels.forEach(l=>{
+      const world=l.pivot?l.pivot.localToWorld(l.local.clone()):l.local.clone();
+      const p=world.project(cam); if(p.z>1||p.z<-1) return;
+      const x=(p.x*0.5+0.5)*W; let y=(-p.y*0.5+0.5)*H;
+      const kids=Array.from(l.el.children).filter(c=>c.textContent.trim().length);
+      (kids.length?kids:[l.el]).forEach(node=>{
+        const cs=getComputedStyle(node), fs=parseFloat(cs.fontSize)*sc;
+        ctx.font=`${cs.fontWeight} ${fs}px ${cs.fontFamily}`; ctx.textBaseline='top';
+        ctx.lineWidth=fs*0.36; ctx.strokeStyle='rgba(255,255,255,0.96)'; ctx.strokeText(node.textContent,x,y);
+        ctx.fillStyle=cs.color; ctx.fillText(node.textContent,x,y); y+=fs*1.18;
+      });
+    });
+  }
+  function drawCaption(ctx,id,sc){
+    const el=document.getElementById(id); const txt=(el.innerText||el.textContent||'').trim(); if(!txt) return;
+    const fs=12*sc; ctx.font=`${fs}px ${getComputedStyle(el).fontFamily}`; ctx.textAlign='left'; ctx.textBaseline='top'; ctx.lineJoin='round';
+    let y=10*sc; txt.split('\n').forEach(line=>{ if(!line.trim())return;
+      ctx.lineWidth=fs*0.3; ctx.strokeStyle='rgba(255,255,255,0.96)'; ctx.strokeText(line,10*sc,y);
+      ctx.fillStyle='#424a5c'; ctx.fillText(line,10*sc,y); y+=fs*1.45; });
+  }
+  const saveCanvas=(canvas,name)=> state.exFmt==='pdf' ? savePDF(canvas,name) : savePNG(canvas,name);
+  function exportViews(which){
+    if(which.length>1){ saveCanvas(exportBoth(),'spin-coupling-both'); return; }
+    const s = which[0]==='left'?{p:left,labs:leftLabels,cap:'corner-left'}:{p:right,labs:rightLabels,cap:(state.mode==='all'?null:'corner-right')};
+    const name='spin-coupling-'+(which[0]==='left'?'input':'output');
+    // PDF: compose into a fixed 1920×1080 page (image export keeps its natural panel aspect)
+    if(state.exFmt==='pdf'){ savePDF(exportSingleFrame(s,which[0]),name); return; }
+    const H=1200, W=Math.max(200,Math.round(H*panelAspect(s.p)));
+    savePNG(renderPanel(s.p,s.labs,s.cap,W,H), name);
+  }
+  // one panel centred in a 1920×1080 page; for the focused view the panel is nudged left and the
+  // j-value is drawn large in the right-hand margin (otherwise wasted space beside the round sphere)
+  function exportSingleFrame(s,side){
+    const W=1920,H=1080,pad=48;
+    const focus = side==='right' && state.mode==='focus';
+    const jZone = focus ? 480 : 0;                 // reserved right-margin strip for the j-value
+    const availW=W-2*pad-jZone, availH=H-2*pad;
+    const asp=(s.p._hw||1)/(s.p._hh||1);
+    let cw=availH*asp, ch=availH;
+    if(cw>availW){ cw=availW; ch=availW/asp; }
+    const bx=pad+(availW-cw)/2, by=pad+(availH-ch)/2;
+    const pxpu=0.9*Math.min(cw/(2*s.p._hw*1.08), ch/(2*s.p._hh*1.08));
+    const frame=document.createElement('canvas'); frame.width=W; frame.height=H;
+    const fctx=frame.getContext('2d'); fctx.fillStyle='#ffffff'; fctx.fillRect(0,0,W,H);
+    fctx.drawImage(renderPanel(s.p,s.labs,s.cap,Math.max(2,Math.round(cw)),Math.max(2,Math.round(ch)),pxpu), Math.round(bx), Math.round(by));
+    if(focus){
+      const c=state.focusC, cx=pad+availW+jZone/2, cy=H/2;
+      const sub='V'+String(c).split('').map(d=>'₀₁₂₃₄₅₆₇₈₉'[d]||d).join('');
+      fctx.textAlign='center'; fctx.textBaseline='alphabetic';
+      fctx.fillStyle='#2d3340'; fctx.font='600 132px "IBM Plex Serif",Georgia,serif';
+      fctx.fillText('j = '+halfStr(c), cx, cy);
+      fctx.fillStyle='#6b7280'; fctx.font='40px "IBM Plex Mono",ui-monospace,monospace';
+      fctx.fillText('coupled channel '+sub, cx, cy+62);
+    }
+    return frame;
+  }
+  // both views in one fixed 1920×1080 frame; input stacked above output in All-states mode (wide+short),
+  // side by side otherwise. Every sphere across both panels is drawn at one common scale.
+  function exportBoth(){
+    const W=1920,H=1080,pad=36,gap=30;
+    const sel=[{p:left,labs:leftLabels,cap:'corner-left'},{p:right,labs:rightLabels,cap:(state.mode==='all'?null:'corner-right')}];
+    let boxes;
+    if(state.mode==='all'){   // input row above output row, heights split by content height so both fill vertically
+      const rw=W-2*pad, availH=H-2*pad-gap, hh=sel.map(s=>s.p._hh), tot=hh[0]+hh[1];
+      const h0=availH*hh[0]/tot, h1=availH*hh[1]/tot;
+      boxes=[{x:pad,y:pad,w:rw,h:h0},{x:pad,y:pad+h0+gap,w:rw,h:h1}];
+    } else {
+      const rh=H-2*pad, rw=(W-2*pad-gap)/2;
+      boxes=[{x:pad,y:pad,w:rw,h:rh},{x:pad+rw+gap,y:pad,w:rw,h:rh}];
+    }
+    // 0.9 leaves a margin around the content in each box so labels near the edge are never clipped
+    const pxpu=0.9*Math.min(...sel.map((s,i)=> Math.min(boxes[i].w/(2*s.p._hw*1.08), boxes[i].h/(2*s.p._hh*1.08)) ));
+    const frame=document.createElement('canvas'); frame.width=W; frame.height=H; const fctx=frame.getContext('2d');
+    fctx.fillStyle='#ffffff'; fctx.fillRect(0,0,W,H);
+    sel.forEach((s,i)=>{ const b=boxes[i], rw=Math.max(2,Math.round(b.w)), rh=Math.max(2,Math.round(b.h));
+      fctx.drawImage(renderPanel(s.p,s.labs,s.cap,rw,rh,pxpu), Math.round(b.x), Math.round(b.y)); });
+    return frame;
+  }
+  // hand a generated file to the viewer: via the artifact "downloads" capability on claude.ai,
+  // else a normal browser download (standalone / self-hosted). Both prompt the viewer.
+  async function saveFile(blob,filename){
+    let downloads=null;
+    try{ if(window.claude&&window.claude.use) downloads=await window.claude.use('downloads'); }catch(e){}
+    if(downloads){
+      try{ await downloads.save({filename,data:blob}); return; }
+      catch(e){ if(!e||e.code==='declined'||e.code==='rate_limited') return; /* else fall through */ }
+    }
+    const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url),1500);
+  }
+  function savePNG(canvas,name){ canvas.toBlob(b=>{ if(b) saveFile(b,name+'.png'); },'image/png'); }
+  function savePDF(canvas,name){
+    const J=window.jspdf&&window.jspdf.jsPDF; if(!J){ savePNG(canvas,name); return; }
+    const w=canvas.width,h=canvas.height;
+    const pdf=new J({orientation:w>=h?'l':'p',unit:'pt',format:[w,h]});
+    pdf.addImage(canvas.toDataURL('image/png'),'PNG',0,0,w,h);
+    saveFile(pdf.output('blob'),name+'.pdf');
+  }
+
+  /* ======================= loop ======================= */
+  function tick(){
+    if(cutActive){ const nw=curN.clone().applyQuaternion(gQuat); if(nw.z>0) nw.negate(); CLIP.normal.copy(nw.normalize()); CLIP.constant=0; }
+    left.render(); right.render(); projectLabels(); requestAnimationFrame(tick); }
+  function onResize(){ left.resize(); right.resize(); }
+  window.addEventListener('resize',onResize);
+  if(window.ResizeObserver){ const ro=new ResizeObserver(onResize); ro.observe(document.getElementById('cv-left')); ro.observe(document.getElementById('cv-right')); }
+
+  recompute(true);
+  setTimeout(()=>{ onResize(); recompute(true); },60);
+  tick();
+})();
+</script>
